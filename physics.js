@@ -12,7 +12,7 @@ var Physics = {
     allGravity: false,
     width: window.innerWidth,
     height: window.innerHeight,
-    lineHeight: 0.5,
+    lineHeight: 0.65,
     initialLineHeight: 0.83,
     collisionAccuracy: 0.5,
     bodyFontSize: 16,
@@ -28,6 +28,9 @@ var Physics = {
             this.mesh = [];
             this.UUID = generateUUID();
             this.gravity = options.gravity || false;
+            if (typeof this.gravity === "undefined") {
+                this.gravity = false;
+            }
             this.momentumX = 0;
             this.momentumY = -1;
             this.collide = options.collide;
@@ -194,10 +197,6 @@ var Physics = {
         }
     },
     render: function(clearScreen) {
-        var offsetI = false;
-        if (clearScreen !== undefined) {
-            offsetI = true;
-        }
         clearScreen = clearScreen || false;
 
         if (clearScreen) {
@@ -210,52 +209,56 @@ var Physics = {
             }
         }
         //console.info(JSON.stringify(Physics.renderBuffer))
-        var s=0;
-        if (offsetI) {
-            s++;
-        }
-        for (var i=s; i<arguments.length; i++) { //add meshes to screen
-            if (arguments[i].gravity == true || Physics.allGravity) { //calculate gravity
-                if (Physics.debugMode) {console.log("Updating velocity for shape: "+arguments[i].type+", UUID: "+arguments[i].UUID+" (velX: "+arguments[i].momentumX+", velY: "+arguments[i].momentumY+")")}
-                    arguments[i].update(false);
-            }
-            if (arguments[i].UUID === undefined) { //sanity check!!
-                if (!(i == 0 && (arguments[i] == true || arguments[i] == false))) {
-                    console.error("Error drawing: argument "+i+" does not exist or doesn't have a UUID");
-                }
-            } else {
-                var bad = false;
+        for (var i=0; i<arguments.length; i++) { //add meshes to screen
+            if (arguments[i] != true && arguments[i] != false){// && typeof arguments[i] !== "undefined") {
+                //alert(JSON.stringify(arguments[i]))
                 try {
-                    arguments[i].width = arguments[i].mesh[0].length;
-                    arguments[i].height = arguments[i].mesh.length;
+                    if (arguments[i].gravity == true || Physics.allGravity) { //calculate gravity
+                        if (Physics.debugMode) {console.log("Updating velocity for shape: "+arguments[i].type+", UUID: "+arguments[i].UUID+" (velX: "+arguments[i].momentumX+", velY: "+arguments[i].momentumY+")")}
+                            arguments[i].update(false);
+                    }
                 } catch(e) {
-                    bad = true;
-                    console.error("Error rendering: argument "+i+" doesn't have a width or height property")
+                    console.error("Error updating gravity for shape. Shape: "+arguments[i]+", e: "+e);
+                    //console.log(JSON.stringify(arguments))
                 }
-                if (arguments[i].width > Physics.width || arguments[i].height > Physics.height) {
-                    bad = true;
-                    console.error("Error rendering: argument "+i+"'s mesh is too large to fit on screen");
-                }
-                if (bad == false) {
-                    var x = constrain(arguments[i].x,0,(Physics.width-arguments[i].width)); //constrain x
-                    var y = constrain(arguments[i].y,0,(Physics.height-arguments[i].height)); //constrain y
-                    arguments[i].x = x; //fix bug where y position keeps changing
-                    arguments[i].y = y;
-                    x = Math.round(x);
-                    y = Math.round(y);
-                    //console.info("x: "+arguments[i].x+", y: "+arguments[i].y+", CONSTx: "+x+", CONSTy: "+y)
-                    if (Physics.debugMode){console.info("Shape to be placed at x: "+x+", y: "+y);}
-                    if (arguments[i].mesh.length == 0) {
-                        console.error("Error rendering: shape has no mesh to render!");
-                    } else {
-                        for (var j=0; j<arguments[i].mesh.length; j++) { //for every line of mesh
-                            for (var b=0; b<arguments[i].mesh[j].length; b++) { //for every character in mesh
-                                try {
-                                    Physics.renderBuffer[j+y] = Physics.renderBuffer[j+y].replaceAt(b+x,arguments[i].mesh[j][b]);
-                                } catch(e) {
-                                    console.error("Error while rendering physics buffer for shape "+arguments[i].type+", UUID "+arguments[i].UUID+", x: "+(b+x)+", y: "+(j+y)+", error: "+e);
+                if (arguments[i].UUID === undefined) { //sanity check!!
+                    if (!(i == 0 && (arguments[i] == true || arguments[i] == false))) {
+                        console.error("Error drawing: argument "+i+" does not exist or doesn't have a UUID");
+                    }
+                } else {
+                    var bad = false;
+                    try {
+                        arguments[i].width = arguments[i].mesh[0].length;
+                        arguments[i].height = arguments[i].mesh.length;
+                    } catch(e) {
+                        bad = true;
+                        console.error("Error rendering: argument "+i+" doesn't have a width or height property")
+                    }
+                    if (arguments[i].width > Physics.width || arguments[i].height > Physics.height) {
+                        bad = true;
+                        console.error("Error rendering: argument "+i+"'s mesh is too large to fit on screen");
+                    }
+                    if (bad == false) {
+                        var x = constrain(arguments[i].x,0,(Physics.width-arguments[i].width)); //constrain x
+                        var y = constrain(arguments[i].y,0,(Physics.height-arguments[i].height)); //constrain y
+                        arguments[i].x = x; //fix bug where y position keeps changing
+                        arguments[i].y = y;
+                        x = Math.round(x);
+                        y = Math.round(y);
+                        //console.info("x: "+arguments[i].x+", y: "+arguments[i].y+", CONSTx: "+x+", CONSTy: "+y)
+                        if (Physics.debugMode){console.info("Shape to be placed at x: "+x+", y: "+y);}
+                        if (arguments[i].mesh.length == 0) {
+                            console.error("Error rendering: shape has no mesh to render!");
+                        } else {
+                            for (var j=0; j<arguments[i].mesh.length; j++) { //for every line of mesh
+                                for (var b=0; b<arguments[i].mesh[j].length; b++) { //for every character in mesh
+                                    try {
+                                        Physics.renderBuffer[j+y] = Physics.renderBuffer[j+y].replaceAt(b+x,arguments[i].mesh[j][b]);
+                                    } catch(e) {
+                                        console.error("Error while rendering physics buffer for shape "+arguments[i].type+", UUID "+arguments[i].UUID+", x: "+(b+x)+", y: "+(j+y)+", error: "+e);
+                                    }
+                                    if (Physics.debugMode){console.log("Adding to buffer at x: "+(b+x)+", y: "+(j+y)+", char: "+arguments[i].mesh[j][b])}
                                 }
-                                if (Physics.debugMode){console.log("Adding to buffer at x: "+(b+x)+", y: "+(j+y)+", char: "+arguments[i].mesh[j][b])}
                             }
                         }
                     }
@@ -389,8 +392,8 @@ var Physics = {
 
         //Physics.element.style.lineHeight = String(Physics.lineHeight);
         Physics.element.style.lineHeight = String(Physics.initialLineHeight);
-        Physics.height = Math.round(window.innerHeight*(Physics.lineHeight-0.34));
-        Physics.width = Math.round(window.innerWidth*(Physics.lineHeight-0.373));
+        Physics.height = Math.round(window.innerHeight*(Physics.lineHeight-0.53));
+        Physics.width = Math.round(window.innerWidth*(Physics.lineHeight-0.523));
         Physics.bodyFontSize = parseFloat(window.getComputedStyle(document.body, null).getPropertyValue('font-size'));
     },
     clear: function() {
@@ -409,6 +412,12 @@ Physics.shape.prototype.update = function(render) {
         if (this.gravity || Physics.allGravity) {
             this.momentumX = constrain(this.momentumX,-Physics.terminalVelocity,Physics.terminalVelocity);
             this.momentumY = constrain(this.momentumY,-Physics.terminalVelocity,Physics.terminalVelocity);
+            if (this.y+this.height == Physics.height) {
+                this.momentumY = 0;
+            }
+            if (this.x+this.width == Physics.width) {
+                this.momentumX = 0;
+            }
             this.y += this.momentumY; //no collision increment velocity
             this.x += this.momentumX;
 
@@ -424,20 +433,23 @@ Physics.shape.prototype.update = function(render) {
                     this.momentumY = this.momentumY+Physics.gravitationalConstant;
                 }
 
-                if (this.collisionRight) { //only do x check if y is stable to prevent drifting
+                /*if (this.collisionRight) { //only do x check if y is stable to prevent drifting
                     this.momentumX = Physics.frictionConstant;
                 } else if (this.collisionLeft) {
                     this.momentumX = -Physics.frictionConstant;
+                }*/
+                if (this.collisionRight || this.collisionLeft) {
+                    this.momentumX = 0;
                 }
             }
-            if (this.momentumX < Physics.frictionConstant && this.momentumX > -Physics.frictionConstant) { //fix for glitch where momentum will be less than constant
+            if (this.momentumX < Physics.frictionConstant && this.momentumX > -Physics.frictionConstant) { //fix for glitch where momentum will be less than constant and oscillation occurs
                 this.momentumX = 0;
             }
             if (this.momentumY < Physics.gravitationalConstant && this.momentumY > Physics.gravitationalConstant) {
                 this.momentumY = 0;
             }
-            if (this.collisionRight == false && this.collisionLeft == false) {
-                if (this.momentumX != Physics.terminalVelocity || this.momentumX != -Physics.terminalVelocity) {
+            if (this.collisionRight == false || this.collisionLeft == false) {
+                if (this.momentumX != Physics.terminalVelocity && this.momentumX != -Physics.terminalVelocity) {
                     if (this.momentumX > 0) {
                         this.momentumX = this.momentumX-Physics.frictionConstant;
                     } else if (this.momentumX < 0) {
@@ -475,18 +487,25 @@ Physics.shape.prototype.calculate = function() {
 }
 
 var play = [];
+var timeSinceUpKey;
+var lastKeyPress = Date.now();
 Physics.shape.prototype.control = function() {
     play = this;
     window.onkeydown = function(e) {
         var e = window.event ? window.event : e;
         if (e.keyCode == 38) { //up
-            if (play.collisionBottom || play.collisionTop || play.y+play.height == Physics.height || play.collisionLeft || play.collisionRight) {
-                play.momentumY = -3;
+            timeSinceUpKey = Date.now()-lastKeyPress;
+            if (play.momentumY < Physics.gravitationalConstant && timeSinceUpKey > 1500) {
+                play.y-=2;
+                setTimeout(function(){
+                    play.momentumY = -3;
+                },50);
             } else if (lvlnum == 0 || lvlnum == "title") {
-                play.momentumY = -3;
+                play.momentumY = -2.5;
             }
+            lastKeyPress = Date.now();
         } else if (e.keyCode == 40) { //down
-            if (play.collisionBottom || play.collisionTop || play.y+play.height == Physics.height || play.collisionLeft || play.collisionRight) {
+            if (play.y+play.height == Physics.height || play.momentumY < Physics.gravitationalConstant) {
                 play.momentumY = 3;
             } else if (lvlnum == 0 || lvlnum == "title") {
                 play.momentumY = 3;

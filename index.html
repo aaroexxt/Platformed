@@ -41,12 +41,23 @@
             Physics.render(platform,platform2,platform3,player,tri);
         }*/
 
-        var player = new Physics.shape("box",{height: 9, gravity: true, width: 9, character: "░", x: 0, y:0});
+        var player = new Physics.shape("box",{height: 8, gravity: true, width: 9, character: "░", x: 0, y:0});
         var titleplayer = new Physics.shape("box",{height: 6, gravity: true, width: 9, character: "░", x: 0, y: 0});
 
         var numbers = [
-            
+            new Physics.shape("custom",{mesh:["   ____ ","  / __ \\"," / / / /","/ /_/ / ","\\____/  "], x: 0, y:0}), //0
+            new Physics.shape("custom",{mesh:["   ___","  <  /","  / / "," / /  ","/_/   "], x: 0, y:0}), //1
+            new Physics.shape("custom",{mesh:["   ___ ","  |__ \\","  __/ /"," / __/ ","/____/ "], x: 0, y:0}), //2
+            new Physics.shape("custom",{mesh:["   _____","  |__  /","   /_ < "," ___/ / ","/____/  "], x: 0, y:0}), //3
+            new Physics.shape("custom",{mesh:["   __ __","  / // /"," / // /_","/__  __/","  /_/   "], x: 0, y:0}), //4
+            new Physics.shape("custom",{mesh:["    ______","   / ____/","  /___ \\  "," ____/ /  ","/_____/   "], x: 0, y:0}), //5
+            new Physics.shape("custom",{mesh:["   _____","  / ___/"," / __ \\ ","/ /_/ / ","\\____/  "], x: 0, y:0}), //6
+            new Physics.shape("custom",{mesh:[" _____","/__  /","  / / "," / /  ","/_/   "], x: 0, y:0}), //7
+            new Physics.shape("custom",{mesh:["   ____ ","  ( __ )"," / __  |","/ /_/ / ","\\____/  "], x: 0, y:0}), //8
+            new Physics.shape("custom",{mesh:["   ____ ","  / __ \\"," / /_/ /"," \\__, / ","/____/  "], x: 0, y:0}), //9
+            new Physics.shape("custom",{mesh:["    __                   __","   / /   ___ _   _____  / /","  / /   / _ \\ | / / _ \\/ / "," / /___/  __/ |/ /  __/ /  ","/_____/\\___/|___/\\___/_/   "], x: 0, y:0}) //level
         ]
+        var extranums = [];
 
         var title = {
             main: new Physics.shape("custom",{mesh:["   ▄███████▄  ▄█          ▄████████     ███        ▄████████  ▄██████▄     ▄████████   ▄▄▄▄███▄▄▄▄      ▄████████ ████████▄  ","  ███    ███ ███         ███    ███ ▀█████████▄   ███    ███ ███    ███   ███    ███ ▄██▀▀▀███▀▀▀██▄   ███    ███ ███   ▀███ ","  ███    ███ ███         ███    ███    ▀███▀▀██   ███    █▀  ███    ███   ███    ███ ███   ███   ███   ███    █▀  ███    ███ ","  ███    ███ ███         ███    ███     ███   ▀  ▄███▄▄▄     ███    ███  ▄███▄▄▄▄██▀ ███   ███   ███  ▄███▄▄▄     ███    ███ ","▀█████████▀  ███       ▀███████████     ███     ▀▀███▀▀▀     ███    ███ ▀▀███▀▀▀▀▀   ███   ███   ███ ▀▀███▀▀▀     ███    ███ ","  ███        ███         ███    ███     ███       ███        ███    ███ ▀███████████ ███   ███   ███   ███    █▄  ███    ███ ","  ███        ███▌    ▄   ███    ███     ███       ███        ███    ███   ███    ███ ███   ███   ███   ███    ███ ███   ▄███ "," ▄████▀      █████▄▄██   ███    █▀     ▄████▀     ███         ▀██████▀    ███    ███  ▀█   ███   █▀    ██████████ ████████▀  ","             ▀                                                            ███    ███                                         "], x: 0, y: 0}),
@@ -71,19 +82,43 @@
         titleplayer.y = title.startline.y-titleplayer.height;
 
         var options = {
-            opts: new Physics.shape("custom",{mesh:["   ___       _   _             ","  / _ \\ _ __| |_(_)___ _ _  ___"," | (_) | '_ \\  _| / _ \\ ' \\(_-<","  \\___/| .__/\\__|_\\___/_||_/__/","       |_|                     "], x: 10, y:25})
+            opts: new Physics.shape("custom",{mesh:["   ___       _   _             ","  / _ \\ _ __| |_(_)___ _ _  ___"," | (_) | '_ \\  _| / _ \\ ' \\(_-<","  \\___/| .__/\\__|_\\___/_||_/__/","       |_|                     "], x: 0, y:0}),
+            optsline: [],
+            nf: new Physics.shape("custom",{mesh:["    _   __      __     _____       _      __             ____","   / | / /___  / /_   / __(_)___  (_)____/ /_  ___  ____/ / /","  /  |/ / __ \\/ __/  / /_/ / __ \\/ / ___/ __ \\/ _ \\/ __  / / "," / /|  / /_/ / /_   / __/ / / / / (__  ) / / /  __/ /_/ /_/  ","/_/ |_/\\____/\\__/  /_/ /_/_/ /_/_/____/_/ /_/\\___/\\__,_(_)   "], x: 0, y: 0})
+        }
+        options.opts.x = ((Physics.width-options.opts.width)/2);
+        options.optsline = new Physics.shape("line",{length: options.opts.width, character: "_", x: options.opts.x, y: options.opts.y+options.opts.height});
+        options.nf.x = ((Physics.width-options.nf.width)/2);
+        options.nf.y = ((Physics.height-options.nf.height)/2);
+
+
+        var loading = {
+            loadbox: [],
+            load: new Physics.shape("custom",{mesh:["    __                    ___                          ","   / /   ____  ____ _____/ (_)___  ____ _              ","  / /   / __ \\/ __ `/ __  / / __ \\/ __ `/              "," / /___/ /_/ / /_/ / /_/ / / / / / /_/ /  _    _    _  ","/_____/\\____/\\__,_/\\__,_/_/_/ /_/\\__, /  (_)  (_)  (_) ","                                /____/                 "], x: 0, y: 0})
         }
 
+        loading.load.x = ((Physics.width-loading.load.width)/2);
+        loading.load.y = ((Physics.height-loading.load.height)/2);
+        loading.loadbox = new Physics.shape("box",{height: loading.load.height+3, width: loading.load.width+3, filled: false, character: "*", x: loading.load.x-2, y: loading.load.y-1});
+
         var lvl1 = {
+            platform: new Physics.shape("line",{length: 20, character: "_", x: 0, y: Physics.height-2}),
+            portal: new Physics.shape("custom",{mesh:["   ____ ","  / __ \\"," / / / /","/ /_/ / ","\\____/  "], x: 5, y: Physics.height-10})
+        }
+
+        var lvl2 = {
+            platform: new Physics.shape("line",{length: Physics.width, character: "_", x: 0, y: Physics.height-2}),
+            portal: new Physics.shape("custom",{mesh:["   ____ ","  / __ \\"," / / / /","/ /_/ / ","\\____/  "], x: Physics.width-5, y: Physics.height-10})
+        }
+
+        var lvl3 = {
             platform: new Physics.shape("line",{length: 50, character: "_", x: 0, y: Physics.height-2}),
             platform2: new Physics.shape("line",{length: 20, character: "_", x: 50, y: Physics.height-10}),
             platform3: new Physics.shape("line",{length: 30, character: "_", x: 70, y: Physics.height-20}),
-            tri: new Physics.shape("triangle",{height: 5, character: "⬘", x: 71, y: Physics.height-26})
+            platform4: new Physics.shape("line",{length: 30, character: "_", x: 90, y: Physics.height-34}),
+            tri: new Physics.shape("triangle",{height: 5, character: "⬘", killPlayer: true, x: 74, y: Physics.height-25}),
+            portal: new Physics.shape("custom",{mesh:["   ____ ","  / __ \\"," / / / /","/ /_/ / ","\\____/  "], x: 120, y: Physics.height-39})
         };
-
-        var lvl2 = {
-            platform: new Physics.shape("line",{length: 20, character: "_", x: 0, y: Physics.height-2})
-        }
 
         var lvl = title;
         var lvlnum = 0;
@@ -103,6 +138,7 @@
 
         var frameCount = 0;
         var fpsset, fpsInterval, startTime, now, then, elapsed;
+        var levelstr;
         var started = false;
         var stop = false;
         function beginGame(fps) {
@@ -135,17 +171,22 @@
                 lvl = eval("lvl"+lnum);
                 lvlnum = Number(lnum);
                 if (Number(lnum) > 0) {
-                    Physics.element.style.lineHeight = String(Physics.lineHeight); //set proper line height of game
-                    player.control(); //control player
+                    if (typeof lvl.portal === "undefined") {
+                        console.error("Portal in level undefined, cancelled loading");
+                    } else {
+                        Physics.element.style.lineHeight = String(Physics.lineHeight); //set proper line height of game
+                        player.control(); //control player
+                        genLevelStr(lnum);
+                    }
                 }
                 player.x = 0;
-                player.y = 0;
+                player.y = 10;
             } catch(e) {
                 try {
                     lvl = eval(lnum);
                     lvlnum = -1;
-                    if (lnum == "title" || lnum == "options") {
-                        Physics.element.style.lineHeight = String(Physics.initialLineHeight); //set proper line height of game
+                    if (lnum == "title" || lnum == "options" || lnum == "loading") {
+                        Physics.element.style.lineHeight = String(Physics.initialLineHeight); //set bigger line height so text is not squished
                         titleplayer.control(); //control player
                         titleplayer.x = 0;
                         titleplayer.y = 0;
@@ -154,6 +195,27 @@
                     console.error("Level '"+lnum+"' has no data; cancelled loading");
                 }
             }
+        }
+        function genLevelStr(lnum) {
+            levelstr = "Physics.render(false, "
+            var usednums = [];
+            var xpos = numbers[10].width;
+            for (var i=0; i<String(lnum).length; i++) {
+                if (!usednums.contains(String(lnum)[i])) {
+                    numbers[String(lnum)[i]].x = xpos;
+                    xpos+=numbers[String(lnum)[i]].width;
+                    levelstr+="numbers["+String(lnum)[i]+"], ";
+                    usednums[usednums.length] = String(lnum)[i];
+                } else { //number already used deep clone and add to array
+                    extranums[extranums.length] = JSON.parse(JSON.stringify(numbers[String(lnum)[i]]));
+                    extranums[extranums.length-1].UUID = generateUUID();
+                    extranums[extranums.length-1].x = xpos;
+                    xpos+=numbers[String(lnum)[i]].width;
+                    levelstr+="extranums["+(extranums.length-1)+"], ";
+                }
+            }
+            levelstr+="numbers[10]);"
+            return levelstr;
         }
         function gameLoop() {
 
@@ -202,7 +264,12 @@
                         }
                         if (titleplayer.collisionRight && !titleplayer.collisionLeft) { //start
                             titleplayer.momentumX = 0;
-                            changeLvl(1);
+                            changeLvl("loading");
+                            titleplayer.gravity = false;
+                            setTimeout(function(){
+                                changeLvl(1);
+                                titleplayer.gravity = true;
+                            },1000);
                         } else if (!titleplayer.collisionRight && titleplayer.collisionLeft) { //options
                             changeLvl("options");
                         }
@@ -213,6 +280,12 @@
                 }
 
                 eval(renderstr);
+                if (lvlnum > 0) {
+                    eval(levelstr);
+                    if (lvl.portal.collisionRight || lvl.portal.collisionLeft || lvl.portal.collisionTop || lvl.portal.collisionBottom) {
+                        changeLvl(lvlnum+1);
+                    }
+                }
 
                 stats.end();
             }
@@ -228,7 +301,25 @@
             Physics.allGravity = (document.getElementById("allgrav").checked)?true:false;
         },1000);
         
-        setInterval(function(){console.log("1b: "+titleplayer.collisionBottom+", t: "+titleplayer.collisionTop+", r: "+titleplayer.collisionRight+", l: "+titleplayer.collisionLeft+", 2"+"b: "+player.collisionBottom+", t: "+player.collisionTop+", r: "+player.collisionRight+", l: "+player.collisionLeft)},100);
+        var target = player;
+        setInterval(function(){
+            if (typeof lvl.portal !== "undefined") {
+                //target = lvl.portal;
+            }
+            if (target.collisionBottom) {
+                console.log("tgt b");
+            } else if (target.collisionTop) {
+                console.log("tgt t");
+            } else if (target.collisionRight) {
+                console.log("tgt r");
+            } else if (target.collisionLeft) {
+                console.log("tgt l");
+            }
+        },1);
+
+        setInterval(function(){
+            console.log(timeSinceUpKey);
+        },100);
 
         /*var counter = 0;
         var rad = 0;
