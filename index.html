@@ -101,14 +101,16 @@
         loading.load.y = ((Physics.height-loading.load.height)/2);
         loading.loadbox = new Physics.shape("box",{height: loading.load.height+3, width: loading.load.width+3, filled: false, character: "*", x: loading.load.x-2, y: loading.load.y-1});
 
+        var portal = ["    ,----..    ","   /   /   \\   ","  /   .     :  "," .   /   ;.  \\ ",".   ;   /  ` ; ",";   |  ; \\ ; | ","|   :  | ; | ' ",".   |  ' ' ' : ","'   ;  \\; /  | "," \\   \\  ',  /  ","  ;   :    /   ","   \\   \\ .'    ","    `---`      "];
+
         var lvl1 = {
             platform: new Physics.shape("line",{length: 20, character: "_", x: 0, y: Physics.height-2}),
-            portal: new Physics.shape("custom",{mesh:["   ____ ","  / __ \\"," / / / /","/ /_/ / ","\\____/  "], x: 5, y: Physics.height-10})
+            portal: new Physics.shape("custom",{mesh:portal, x: 7, y: Physics.height-20})
         }
 
         var lvl2 = {
             platform: new Physics.shape("line",{length: Physics.width, character: "_", x: 0, y: Physics.height-2}),
-            portal: new Physics.shape("custom",{mesh:["   ____ ","  / __ \\"," / / / /","/ /_/ / ","\\____/  "], x: Physics.width-5, y: Physics.height-10})
+            portal: new Physics.shape("custom",{mesh:portal, x: Physics.width-7, y: Physics.height-20})
         }
 
         var lvl3 = {
@@ -117,7 +119,7 @@
             platform3: new Physics.shape("line",{length: 30, character: "_", x: 70, y: Physics.height-20}),
             platform4: new Physics.shape("line",{length: 30, character: "_", x: 90, y: Physics.height-34}),
             tri: new Physics.shape("triangle",{height: 5, character: "⬘", killPlayer: true, x: 74, y: Physics.height-25}),
-            portal: new Physics.shape("custom",{mesh:["   ____ ","  / __ \\"," / / / /","/ /_/ / ","\\____/  "], x: 120, y: Physics.height-39})
+            portal: new Physics.shape("custom",{mesh:portal, x: 120, y: Physics.height-39})
         };
 
         var lvl = title;
