@@ -9,23 +9,28 @@ var Physics = {
     defaultShapeChar: "*",
     defaultNewlineChar: "<br>",
     startString: "PHYV5:<br><br>",
+    //CONSTANTS
     gravitationalConstant: 0.2,
     frictionConstant: 0.7,
     terminalVelocity: 7,
     ticksPerSecond: 60, //limit number of physics calls per second
     updatesPerSecond: 40, //limit number of gravity updates per second
     renderPerSecond: 50, //limit renders performed per second
+    renderInColor: false,
+    //TIMING VARIABLES
     now: Date.now(),
     nextTick: Date.now(),
     nextUpdate: Date.now(),
     nextRender: Date.now(), //currently disabled because of problems with timing, go to line 279 to change this (line may change as I remove/add code)
     lastUpdate: Date.now(),
     oldDelta: 0,
+    //PHYSICS CONSTANTS
     enableDeltaTimeCalculations: true, //can help mitigate low framerate by helping to keep jumps consistent
     simpleDeltaCalculations: true,
     forceAverageDelta: false,
     moreEfficientPhysics: false, //beta and doesn't work yet
     //weightPerCharacter: 0.1, //to be implemented
+    //GENERAL CONSTANTS
     debugMode: false,
     allGravity: false,
     width: window.innerWidth,
@@ -33,6 +38,7 @@ var Physics = {
     lineHeight: 0.65,
     initialLineHeight: 0.83,
     collisionAccuracy: 0.5,
+    //MISC
     collisionEfficiency: -1,
     inefficientArr: [],
     bodyFontSize: 16,
@@ -47,13 +53,19 @@ var Physics = {
             this.x = options.x || 0;
             this.y = options.y || 0;
             this.mesh = [];
+            this.colorMesh = [];
+            this.color = options.color || "black";
+            if (typeof this.color === "undefined") {
+                this.color = "black";
+            }
+
             this.UUID = generateUUID();
             this.gravity = options.gravity || false;
-            if (typeof this.gravity === "undefined") {
+            if (typeof this.gravity === "undefined" || typeof options.gravity === "undefined") {
                 this.gravity = false;
             }
             this.momentumX = 0;
-            this.momentumY = -1;
+            this.momentumY = 0;
             this.collide = options.collide;
             if (typeof this.collide === "undefined") {
                 this.collide = true;
@@ -86,49 +98,25 @@ var Physics = {
                 if (this.filled) {
                     for (var i=0; i<this.height; i++) {
                         this.mesh[i] = "";
+                        this.colorMesh[i] = "";
                         for (var j=0; j<this.width; j++) {
                             this.mesh[i]+=this.character;
+                            this.colorMesh[i]+= "<span style='color: "+this.color+";'>"+this.character+"</span>";
                             this.pointTable[this.pointTable.length] = [i,j];
                         }
                     }
                 } else {
                     for (var i=0; i<this.height; i++) {
                         this.mesh[i] = "";
+                        this.colorMesh[i] = "";
                         for (var j=0; j<this.width; j++) {
                             if ((i == 0 || i == (this.height-1)) || (j == 0 || j == (this.width-1))) {
                                 this.mesh[i]+=this.character;
+                                this.colorMesh[i]+= "<span style='color: "+this.color+";'>"+this.character+"</span>";
                                 this.pointTable[this.pointTable.length] = [i,j];
                             } else {
                                 this.mesh[i]+=Physics.defaultSpaceChar;
-                            }
-                        }
-                    }
-                }
-            } else if (type == "colorbox") {
-                this.height = options.height || 10;
-                this.width = options.width || 10;
-                this.color = options.color || "black";
-                this.filled = options.filled;
-                if (typeof this.filled === "undefined") {
-                    this.filled = true;
-                }
-                if (this.filled) {
-                    for (var i=0; i<this.height; i++) {
-                        this.mesh[i] = "";
-                        for (var j=0; j<this.width; j++) {
-                            this.mesh[i]+="<span style='color: "+this.color+";'>"+this.character+"</span>";
-                            this.pointTable[this.pointTable.length] = [i,j];
-                        }
-                    }
-                } else {
-                    for (var i=0; i<this.height; i++) {
-                        this.mesh[i] = "";
-                        for (var j=0; j<this.width; j++) {
-                            if ((i == 0 || i == (this.height-1)) || (j == 0 || j == (this.width-1))) {
-                                this.mesh[i]+=this.character;
-                                this.pointTable[this.pointTable.length] = [i,j];
-                            } else {
-                                this.mesh[i]+=Physics.defaultSpaceChar;
+                                this.colorMesh[i]+= Physics.defaultSpaceChar;
                             }
                         }
                     }
@@ -138,6 +126,7 @@ var Physics = {
                 this.mesh[0] = "";
                 for (var i=0; i<this.length; i++) {
                     this.mesh[0]+=this.character;
+                    this.colorMesh[0]+= "<span style='color: "+this.color+";'>"+this.character+"</span>";
                     this.pointTable[this.pointTable.length] = [i,0];
                 }
             } else if (type == "triangle") {
@@ -146,8 +135,10 @@ var Physics = {
 
                 for (var i=0; i<this.height; i++) { //generate blank mask as a square
                     this.mesh[i] = "";
+                    this.colorMesh[i] = "";
                     for (var j=0; j<this.width; j++) {
                         this.mesh[i]+=Physics.defaultSpaceChar;
+                        this.colorMesh[i]+= Physics.defaultSpaceChar;
                     }
                 }
                 var start = this.width/2;
@@ -155,6 +146,7 @@ var Physics = {
                 for (var i=0; i<this.height; i++) {
                     for (var j=0; j<amount; j++) {
                         this.mesh[i] = this.mesh[i].replaceAt((start+j),this.character);
+                        this.colorMesh[i] = this.mesh[i].replaceAt((start+j),"<span style='color: "+this.color+";'>"+this.character+"</span>");
                         this.pointTable[this.pointTable.length] = [i,j];
                     }
                     start-=1;
@@ -168,11 +160,17 @@ var Physics = {
                     this.height = options.mesh.length;
                     for (var i=0; i<options.mesh.length; i++) {
                         this.mesh[i] = [];
+                        this.colorMesh[i] = [];
                         if (options.mesh[i].length > this.width) {
                             this.width = options.mesh[i].length;
                         }
                         for (var j=0; j<options.mesh[i].length; j++) {
-                            this.mesh[i][j] = options.mesh[i][j];
+                            this.mesh[i] += options.mesh[i][j];
+                            if (options.mesh[i][j] == " ") {
+                                this.colorMesh[i] += " ";
+                            } else {
+                                this.colorMesh[i] += "<span style='color: "+this.color+";'>"+options.mesh[i][j]+"</span>";
+                            }
                             this.pointTable[this.pointTable.length] = [i,j];
                         }
                     }
@@ -187,6 +185,7 @@ var Physics = {
 
                     for (var i=0; i<=2*this.radius; i++) { //draw unfilled circle
                         this.mesh[i] = "";
+                        this.colorMesh[i] = "";
                         for (var j=0; j<=2*this.radius; j++) {
 
                             var offsetx = j;
@@ -196,22 +195,27 @@ var Physics = {
                             var dy=centery-offsety;
                             if ((dx*dx + dy*dy) <= (this.radius*this.radius)) {
                                 this.mesh[i]+=this.character;
+                                this.colorMesh[i]+= "<span style='color: "+this.color+";'>"+this.character+"</span>";
                                 this.pointTable[this.pointTable.length] = [i,j];
                             } else {
                                 this.mesh[i]+=Physics.defaultSpaceChar;
+                                this.colorMesh[i]+= Physics.defaultSpaceChar;
                             }
                         }
                     }
                 } else if (this.filled == "cool") {
                     for (var i=0; i<=2*this.radius; i++) { //draw unfilled circle
                         this.mesh[i] = "";
+                        this.colorMesh[i] = "";
                         for (var j=0; j<=2*this.radius; j++) {
                             var distance = Math.sqrt((i-this.radius)*(i-this.radius) + (j-this.radius)*(j-this.radius));
                             if (distance>this.radius-0.5 && distance<this.radius+0.5) {
                                 this.pointTable[this.pointTable.length] = [i,j];
                                 this.mesh[i]+=this.character;
+                                this.colorMesh[i]+= "<span style='color: "+this.color+";'>"+this.character+"</span>";
                             } else {
                                 this.mesh[i]+=Physics.defaultSpaceChar;
+                                this.colorMesh[i]+= Physics.defaultSpaceChar;
                             }
                         }
                     }
@@ -227,24 +231,28 @@ var Physics = {
                             //console.log("x: "+roux+", y: "+rouy)
                             this.pointTable[this.pointTable.length] = [i,j];
                             this.mesh[rouy] = this.mesh[rouy].replaceAt(roux,this.character);
+                            this.colorMesh[rouy] = this.colorMesh[rouy].replaceAt(roux,"<span style='color: "+this.color+";'>"+this.character+"</span>");
                         }
                     }
                 } else {
                     for (var i=0; i<=2*this.radius; i++) {
                         this.mesh[i] = "";
+                        this.colorMesh[i] = "";
                         for (var j=0; j<=2*this.radius; j++) {
                             var distance = Math.sqrt((i-this.radius)*(i-this.radius) + (j-this.radius)*(j-this.radius));
                             if (distance>this.radius-0.5 && distance<this.radius+0.5) {
                                 this.mesh[i]+=this.character;
+                                this.colorMesh[i]+= "<span style='color: "+this.color+";'>"+this.character+"</span>";
                                 this.pointTable[this.pointTable.length] = [i,j];
                             } else {
                                 this.mesh[i]+=Physics.defaultSpaceChar;
+                                this.colorMesh[i]+= Physics.defaultSpaceChar;
                             }
                         }
                     }
                 }
             } else {
-                console.error("Shape not found. There may be errors rendering.")
+                console.error("Shape not found. There may be errors rendering.");
             }
             this.pointTable.uniqueify(); //remove calls for multiple points
             this.update(); //update to start gravity and set updated point table
@@ -280,6 +288,13 @@ var Physics = {
             }
         }
         //console.info(JSON.stringify(Physics.renderBuffer))
+        var colorXOffset = [];
+        var rtolRender = [];
+        if (Physics.renderInColor) {
+            for (var i=0; i<arguments.length; i++) {
+
+            }
+        }
         for (var i=0; i<arguments.length; i++) { //add meshes to screen
             if (arguments[i] != true && arguments[i] != false && typeof arguments[i] !== "undefined") {
                 //alert(JSON.stringify(arguments[i]))
@@ -318,20 +333,45 @@ var Physics = {
                         y = Math.round(y);
                         //console.info("x: "+arguments[i].x+", y: "+arguments[i].y+", CONSTx: "+x+", CONSTy: "+y)
                         if (Physics.debugMode){console.info("Shape to be placed at x: "+x+", y: "+y);}
-                        if (arguments[i].mesh.length == 0) {
-                            console.error("Error rendering: shape has no mesh to render!");
+                        if (arguments[i].mesh.length == 0 || arguments[i].colorMesh.length == 0) {
+                            console.error("Error rendering: shape has no mesh (or colorMesh) to render!");
                         } else {
                             if (nextFrameReached || clearScreen == false || arguments[i].overrideRenderLimit || true) { //I'll fix the render timing later, it doesn't work
-                                for (var j=0; j<arguments[i].mesh.length; j++) { //for every line of mesh
-                                    for (var b=0; b<arguments[i].mesh[j].length; b++) { //for every character in mesh
-                                        try {
-                                            Physics.renderBuffer[j+y] = Physics.renderBuffer[j+y].replaceAt(b+x,arguments[i].mesh[j][b]);
-                                            Physics.charsPerFrame++;
-                                        } catch(e) {
-                                            console.error("Error while rendering physics buffer for shape "+arguments[i].type+", UUID "+arguments[i].UUID+", x: "+(b+x)+", y: "+(j+y)+", error: "+e);
+                                var mesh = (Physics.renderInColor) ? arguments[i].colorMesh : arguments[i].mesh;
+                                //console.log((Physics.renderInColor || arguments[i].UUID == titleplayer.UUID) ? "Color mesh selected" : "");
+                                for (var j=0; j<mesh.length; j++) { //for every line of mesh
+                                    if (Physics.renderInColor) {
+                                        //Physics.renderBuffer[j+y] = Physics.renderBuffer[j+y][x] += arguments[i].colorMesh[j];
+                                        /*if (Physics.renderBuffer[j+y].substr(x, x+1) != " ") {
+                                            Physics.renderBuffer[j+y] = Physics.renderBuffer[j+y].slice(0, x) + arguments[i].colorMesh[j] + Physics.renderBuffer[j+y].slice(x);
+                                        } else {
+                                            Physics.renderBuffer[j+y] = Physics.renderBuffer[j+y].replaceAt(x,arguments[i].colorMesh[j]); //MAKE IT SLICE IN CHARS NOT REPLACE
+                                        }*/
+                                        Physics.renderBuffer[j+y] = Physics.renderBuffer[j+y].slice(0, x) + arguments[i].colorMesh[j] + Physics.renderBuffer[j+y].slice(x);
+                                        //CHANGE SO REMOVES NUMBER OF CHARACTERS THAT WERE REPLACED: Ex. inserts player at certain x, then adds playerx+playerwidth and removes (playerwidth) characters
+                                        var endX = arguments[i].x+arguments[i].colorMesh[j].length;
+                                        //loop
+                                        /*for (var z=0; z<(arguments[i].width || arguments[i].length); z++) {
+                                            if (Physics.renderBuffer[j+y].substring(endX+z,endX+z+1) == " ") {
+                                                //break;
+                                            }
+                                            Physics.renderBuffer[j+y] = Physics.renderBuffer[j+y].slice(0, endX+z) + Physics.renderBuffer[j+y].slice(endX+z+1);
+                                        }*/
+                                        // oneliner: Physics.renderBuffer[j+y] = Physics.renderBuffer[j+y].slice(0, endX) + Physics.renderBuffer[j+y].slice(endX+(arguments[i].width || arguments[i].length));
+                                        Physics.charsPerFrame+=arguments[i].colorMesh[j].length;
+                                        if (Physics.debugMode){console.log("Adding to buffer (COLOR) at x: "+(x)+", y: "+(j+y)+", offset: "+JSON.stringify(colorXOffset)+", j val: "+j+", chars: "+arguments[i].colorMesh[j])}
+                                    } else {
+                                        for (var b=0; b<mesh[j].length; b++) { //for every character in mesh
+                                            try {
+                                                Physics.renderBuffer[j+y] = Physics.renderBuffer[j+y].replaceAt(b+x,arguments[i].mesh[j][b]);
+                                                Physics.charsPerFrame++;
+                                            } catch(e) {
+                                                console.error("Error while rendering physics buffer for shape "+arguments[i].type+", UUID "+arguments[i].UUID+", x: "+(b+x)+", y: "+(j+y)+", error: "+e);
+                                            }
+                                            if (Physics.debugMode){console.log("Adding to buffer (non-color) at x: "+(b+x)+", offset: "+JSON.stringify(colorXOffset)+", j val: "+j+", y: "+(j+y)+", char: "+mesh[j][b])}
                                         }
-                                        if (Physics.debugMode){console.log("Adding to buffer at x: "+(b+x)+", y: "+(j+y)+", char: "+arguments[i].mesh[j][b])}
                                     }
+                                    
                                 }
                             }
                         }
@@ -584,6 +624,8 @@ var Physics = {
             console.typeable("debugon","console.log(\"Type debugon into the console to enable debug mode. (Warning: there is about 1000 debug messages outputted per second)\");","console.log(\"Debug mode active.\"); Physics.debugMode = true;");
             console.typeable("debugoff","console.log(\"Type debugoff into the console to disable debug mode.\");","console.log(\"Debug mode disabled.\"); Physics.debugMode = false;");
             console.typeable("collisioncheck","console.log(\"Type collisioncheck into the console to test collisions. (mostly for me) Note that the object being tested must be named \'player\'.\");","console.log(\"Testing collisions...\"); player.y = 1000; player.x = -1000; Physics.render(platform,platform2,platform3,player,tri); Physics.calculate_collisions(platform,platform2,platform3,player,tri); console.log(\"Player colliding: bottom: \"+player.collisionBottom+\", top: \"+player.collisionTop+\", right: \"+player.collisionRight+\", left: \"+player.collisionLeft); setTimeout(function(){player.y = 10; player.x = 10; Physics.render(platform,platform2,platform3,player,tri); Physics.calculate_collisions(platform,platform2,platform3,player,tri); console.log(\"Player still colliding: bottom: \"+player.collisionBottom+\", top: \"+player.collisionTop+\", right: \"+player.collisionRight+\", left: \"+player.collisionLeft);},100);");
+            console.typeable("debug2s","console.log('Type debug2s into the console to perform auto-test of code for 2s and then stop it. (Mostly for debugging broken things in render loop)');","console.clear(); fpsInterval = 0; debugon; setFPS(1); setTimeout(function(){fpsInterval = 0; debugoff;},2000);");
+            //console.typeable("stop","console.log('Type stop into the console to stop the game.');","fpsInterval = 0;")
             beginGame(60); //start game at 30fps
             console.log("%cWelcome to Platformed, a 2d platformer game by Aaron Becker. I hope you enjoy it! Also, if you see this, you're awesome :)","color: #f49b42")
         },500);
@@ -699,7 +741,24 @@ Physics.shape.prototype.calculate = function() {
             }
         }
     }
-    this.centerPoint = [(this.updPointTable[0][0]+(0.5*(this.width || this.radius || this.height || 0))),(this.updPointTable[0][1]+(0.5*(this.height || this.radius || this.width || 0)))];
+    this.centerPoint = [(this.updPointTable[0][0]+(0.5*(this.width || this.radius || this.length || this.height || 0))),(this.updPointTable[0][1]+(0.5*(this.height || this.radius || this.length || this.width || 0)))];
+}
+
+Physics.shape.prototype.regenColorMesh = function(newColor) {
+    this.colorMesh = [];
+    this.color = newColor;
+    for (var i=0; i<this.mesh.length; i++) {
+        this.colorMesh[i] = "";
+        for (var j=0; j<this.mesh[i].length; j++) {
+            if (this.type == "custom" && this.mesh[i][j] !== " ") {
+                this.colorMesh[i]+= "<span style='color: "+this.color+";'>"+this.mesh[i][j]+"</span>";
+            } else if (this.mesh[i][j] == this.character) {
+                this.colorMesh[i]+= "<span style='color: "+this.color+";'>"+this.character+"</span>";
+            } else {
+                this.colorMesh[i]+=Physics.defaultSpaceChar;
+            }
+        }
+    }
 }
 
 var play = [];

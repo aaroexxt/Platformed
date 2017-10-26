@@ -59,6 +59,9 @@
             <input type="range" name="tbj" id="tbj" value="900" min="0" max="5000" onchange="document.getElementById('tbjlb').innerHTML = this.value+'ms';" oninput="document.getElementById('tbjlb').innerHTML = this.value+'ms';">
             <em id="tbjlb" style="font-style: normal;">1000ms</em>
             <br>
+            <label for="rec">(BETA, Rendering may be slow) Render in color?</label>
+            <input type="checkbox" name="rec" id="rec">
+            <br>
             <p>Wacky Effects :)</p>
             <label for="fbc">Clear frameBuffer on every frame?</label>
             <input type="checkbox" name="fbc" id="fbc" checked>
@@ -102,8 +105,8 @@
                 gameAudio.pause();
             },1000);
         }
-        var player = new Physics.shape("box",{height: 8, gravity: true, width: 9, character: "░", x: 0, y:0});
-        var titleplayer = new Physics.shape("box",{height: 6, gravity: true, width: 9, character: "░", x: 0, y: 0});
+        var player = new Physics.shape("box",{height: 8, gravity: true, width: 9, color: "#66ffcc", character: "░", x: 0, y:0});
+        var titleplayer = new Physics.shape("box",{height: 6, gravity: true, width: 9, color: "#66ffcc", character: "░", x: 0, y: 0});
         var enablePlayerEditor = false;
 
         var oldEPE = false;
@@ -135,13 +138,13 @@
         jump.volume = 0.5;
 
         var numbers = [
-            new Physics.shape("custom",{mesh:["   ____ ","  / __ \\"," / / / /","/ /_/ / ","\\____/  "], x: 0, y:0, overrideRenderLimit: true}), //0
-            new Physics.shape("custom",{mesh:["   ___","  <  /","  / / "," / /  ","/_/   "], x: 0, y:0, overrideRenderLimit: true}), //1
-            new Physics.shape("custom",{mesh:["   ___ ","  |__ \\","  __/ /"," / __/ ","/____/ "], x: 0, y:0, overrideRenderLimit: true}), //2
-            new Physics.shape("custom",{mesh:["   _____","  |__  /","   /_ < "," ___/ / ","/____/  "], x: 0, y:0, overrideRenderLimit: true}), //3
-            new Physics.shape("custom",{mesh:["   __ __","  / // /"," / // /_","/__  __/","  /_/   "], x: 0, y:0, overrideRenderLimit: true}), //4
-            new Physics.shape("custom",{mesh:["    ______","   / ____/","  /___ \\  "," ____/ /  ","/_____/   "], x: 0, y:0, overrideRenderLimit: true}), //5
-            new Physics.shape("custom",{mesh:["   _____","  / ___/"," / __ \\ ","/ /_/ / ","\\____/  "], x: 0, y:0, overrideRenderLimit: true}), //6
+            new Physics.shape("custom",{mesh:["   ____ ","  / __ \\"," / / / /","/ /_/ / ","\\____/  "], x: 0, y:0, color: "red", overrideRenderLimit: true}), //0
+            new Physics.shape("custom",{mesh:["   ___","  <  /","  / / "," / /  ","/_/   "], x: 0, y:0, color: "orange", overrideRenderLimit: true}), //1
+            new Physics.shape("custom",{mesh:["   ___ ","  |__ \\","  __/ /"," / __/ ","/____/ "], x: 0, y:0, color: "yellow", overrideRenderLimit: true}), //2
+            new Physics.shape("custom",{mesh:["   _____","  |__  /","   /_ < "," ___/ / ","/____/  "], x: 0, y:0, color: "green", overrideRenderLimit: true}), //3
+            new Physics.shape("custom",{mesh:["   __ __","  / // /"," / // /_","/__  __/","  /_/   "], x: 0, y:0, color: "#00ccff", overrideRenderLimit: true}), //4
+            new Physics.shape("custom",{mesh:["    ______","   / ____/","  /___ \\  "," ____/ /  ","/_____/   "], x: 0, y:0, color: "blue", overrideRenderLimit: true}), //5
+            new Physics.shape("custom",{mesh:["   _____","  / ___/"," / __ \\ ","/ /_/ / ","\\____/  "], x: 0, y:0, color: "indigo", overrideRenderLimit: true}), //6
             new Physics.shape("custom",{mesh:[" _____","/__  /","  / / "," / /  ","/_/   "], x: 0, y:0, overrideRenderLimit: true}), //7
             new Physics.shape("custom",{mesh:["   ____ ","  ( __ )"," / __  |","/ /_/ / ","\\____/  "], x: 0, y:0, overrideRenderLimit: true}), //8
             new Physics.shape("custom",{mesh:["   ____ ","  / __ \\"," / /_/ /"," \\__, / ","/____/  "], x: 0, y:0, overrideRenderLimit: true}), //9
@@ -152,7 +155,7 @@
         var cursor = new Physics.shape("custom",{mesh:["_"], x:0, y:0});
 
         var title = {
-            main: new Physics.shape("custom",{mesh:["   ▄███████▄  ▄█          ▄████████     ███        ▄████████  ▄██████▄     ▄████████   ▄▄▄▄███▄▄▄▄      ▄████████ ████████▄  ","  ███    ███ ███         ███    ███ ▀█████████▄   ███    ███ ███    ███   ███    ███ ▄██▀▀▀███▀▀▀██▄   ███    ███ ███   ▀███ ","  ███    ███ ███         ███    ███    ▀███▀▀██   ███    █▀  ███    ███   ███    ███ ███   ███   ███   ███    █▀  ███    ███ ","  ███    ███ ███         ███    ███     ███   ▀  ▄███▄▄▄     ███    ███  ▄███▄▄▄▄██▀ ███   ███   ███  ▄███▄▄▄     ███    ███ ","▀█████████▀  ███       ▀███████████     ███     ▀▀███▀▀▀     ███    ███ ▀▀███▀▀▀▀▀   ███   ███   ███ ▀▀███▀▀▀     ███    ███ ","  ███        ███         ███    ███     ███       ███        ███    ███ ▀███████████ ███   ███   ███   ███    █▄  ███    ███ ","  ███        ███▌    ▄   ███    ███     ███       ███        ███    ███   ███    ███ ███   ███   ███   ███    ███ ███   ▄███ "," ▄████▀      █████▄▄██   ███    █▀     ▄████▀     ███         ▀██████▀    ███    ███  ▀█   ███   █▀    ██████████ ████████▀  ","             ▀                                                            ███    ███                                         "], x: 0, y: 0}),
+            main: new Physics.shape("custom",{mesh:["   ▄███████▄  ▄█          ▄████████     ███        ▄████████  ▄██████▄     ▄████████   ▄▄▄▄███▄▄▄▄      ▄████████ ████████▄  ","  ███    ███ ███         ███    ███ ▀█████████▄   ███    ███ ███    ███   ███    ███ ▄██▀▀▀███▀▀▀██▄   ███    ███ ███   ▀███ ","  ███    ███ ███         ███    ███    ▀███▀▀██   ███    █▀  ███    ███   ███    ███ ███   ███   ███   ███    █▀  ███    ███ ","  ███    ███ ███         ███    ███     ███   ▀  ▄███▄▄▄     ███    ███  ▄███▄▄▄▄██▀ ███   ███   ███  ▄███▄▄▄     ███    ███ ","▀█████████▀  ███       ▀███████████     ███     ▀▀███▀▀▀     ███    ███ ▀▀███▀▀▀▀▀   ███   ███   ███ ▀▀███▀▀▀     ███    ███ ","  ███        ███         ███    ███     ███       ███        ███    ███ ▀███████████ ███   ███   ███   ███    █▄  ███    ███ ","  ███        ███▌    ▄   ███    ███     ███       ███        ███    ███   ███    ███ ███   ███   ███   ███    ███ ███   ▄███ "," ▄████▀      █████▄▄██   ███    █▀     ▄████▀     ███         ▀██████▀    ███    ███  ▀█   ███   █▀    ██████████ ████████▀  ","             ▀                                                            ███    ███                                         "], x: 0, color: "#66ccff", y: 0}),
             subtitle: new Physics.shape("custom",{mesh:["                         ___                                                                        ","_-_ _,,                 -   -_,                               _-_ _,,              ,,               ","   -/  )               (  ~/||    _                              -/  )             ||               ","  ~||_<   '\\\\/\\\\       (  / ||   < \\, ,._-_  /'\\\\ \\\\/\\\\         ~||_<    _-_   _-_ ||/\\  _-_  ,._-_ ","   || \\\\   || ;'        \\/==||   /-||  ||   || || || ||          || \\\\  || \\\\ ||   ||_< || \\\\  ||   ","   ,/--||  ||/          /_ _||  (( ||  ||   || || || ||          ,/--|| ||/   ||   || | ||/    ||   ","  _--_-'   |/          (  - \\\\,  \\/\\\\  \\\\,  \\\\,/  \\\\ \\\\         _--_-'  \\\\,/  \\\\,/ \\\\,\\ \\\\,/   \\\\,  "," (        (                                                    (                                    ","           -_-                                                                                      "], x:0, y:10}),
             startbox: [],
             optsbox: [],
@@ -510,6 +513,7 @@
                 }
                 clearsc = (document.getElementById("fbc").checked)?true:false;
                 Physics.allGravity = (document.getElementById("allgrav").checked)?true:false;
+                Physics.renderInColor = (document.getElementById("rec").checked)?true:false;
                 if (oldvol != Number(document.getElementById("mv").value)) {
                     gameAudio.setVolume(Number(document.getElementById("mv").value));
                     oldvol = Number(document.getElementById("mv").value);

@@ -14,6 +14,7 @@ fix slow replaceat functions in render
 add collidingwith to collision detection
 middle collision detection w/bounding box to narrow broad->narrow objects even more
 finish type fixes collision detection
+match jump time to timer in top left
 
 done:
 collision detection calculating shapes in j twice fix done
