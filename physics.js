@@ -1,3 +1,8 @@
+/*
+physics.js by Aaron Becker
+A complete ASCII physics engine written in JavaScript
+*/
+
 var Physics = {
     element: null,
     defaultSpaceChar: " ",
@@ -18,6 +23,7 @@ var Physics = {
     bodyFontSize: 16,
     renderBuffer: [],
     renderString: [],
+    charsPerFrame: 0,
     shape: function(type, options) {
         if (type === undefined || options === undefined) {
             throw new Error("Type or options incomplete");
@@ -199,6 +205,8 @@ var Physics = {
     render: function(clearScreen) {
         clearScreen = clearScreen || false;
 
+        Physics.charsPerFrame = 0;
+
         if (clearScreen) {
             Physics.renderBuffer = [];
             for (var j=0; j<Physics.height; j++) { //generate blank screen
@@ -210,7 +218,7 @@ var Physics = {
         }
         //console.info(JSON.stringify(Physics.renderBuffer))
         for (var i=0; i<arguments.length; i++) { //add meshes to screen
-            if (arguments[i] != true && arguments[i] != false){// && typeof arguments[i] !== "undefined") {
+            if (arguments[i] != true && arguments[i] != false && typeof arguments[i] !== "undefined") {
                 //alert(JSON.stringify(arguments[i]))
                 try {
                     if (arguments[i].gravity == true || Physics.allGravity) { //calculate gravity
@@ -254,6 +262,7 @@ var Physics = {
                                 for (var b=0; b<arguments[i].mesh[j].length; b++) { //for every character in mesh
                                     try {
                                         Physics.renderBuffer[j+y] = Physics.renderBuffer[j+y].replaceAt(b+x,arguments[i].mesh[j][b]);
+                                        Physics.charsPerFrame++;
                                     } catch(e) {
                                         console.error("Error while rendering physics buffer for shape "+arguments[i].type+", UUID "+arguments[i].UUID+", x: "+(b+x)+", y: "+(j+y)+", error: "+e);
                                     }
@@ -278,7 +287,12 @@ var Physics = {
             Physics.element.innerHTML = Physics.renderString; //draw it!
         }
     },
-    calculate_collisions: function() { //SPRITE XY TABLES WITH POINTS, ADD X AND Y TO POINTS AND SEE IF THEY INTERSECT
+    /*
+    Ideas for making collision more efficient:
+        -SPRITE XY TABLES WITH POINTS, ADD X AND Y TO POINTS AND SEE IF THEY INTERSECT done
+        -broad phase/narrow phase collision detection to save computing power
+    */
+    calculate_collisions: function() {
         if (arguments.length < 2) {
             console.error("Error while calculating collisions: there is only one (or none) shape passed into function.");
         } else {
@@ -302,7 +316,7 @@ var Physics = {
                     for (var b=0; b<arguments[i].updPointTable.length; b++) {
                         for (var z=0; z<arguments[j].updPointTable.length; z++) {
                             //console.log(typeof (arguments[i].updPointTable[b][0]-arguments[j].updPointTable[z][0]))
-                            if (((arguments[i].updPointTable[b][0]-arguments[j].updPointTable[z][0]).between(-Physics.collisionAccuracy,Physics.collisionAccuracy) && (arguments[i].updPointTable[b][1]-arguments[j].updPointTable[z][1]).between(-Physics.collisionAccuracy,Physics.collisionAccuracy)) && arguments[i].UUID != arguments[j].UUID) { //make sure uuids are different so that shapes cant collide with themselves
+                            if (((arguments[i].updPointTable[b][0]-arguments[j].updPointTable[z][0]).between(-Physics.collisionAccuracy,Physics.collisionAccuracy) && (arguments[i].updPointTable[b][1]-arguments[j].updPointTable[z][1]).between(-Physics.collisionAccuracy,Physics.collisionAccuracy)) && arguments[i].UUID != arguments[j].UUID) { //make sure uuids are different so that shapes can't collide with themselves
                                 if (Physics.debugMode) {
                                     console.log("Collision detected between "+arguments[i].type+" (UUID: "+arguments[i].UUID+") and "+arguments[j].type+" (UUID: "+arguments[j].UUID+"), X1: "+arguments[i].updPointTable[b][0]+", Y1: "+arguments[i].updPointTable[b][1]+", X2: "+arguments[j].updPointTable[z][0]+", Y2: "+arguments[j].updPointTable[z][0]);
                                 }
@@ -382,11 +396,14 @@ var Physics = {
             //console.clear();
             console.log("   ▄███████▄  ▄█          ▄████████     ███        ▄████████  ▄██████▄     ▄████████   ▄▄▄▄███▄▄▄▄      ▄████████ ████████▄  \n  ███    ███ ███         ███    ███ ▀█████████▄   ███    ███ ███    ███   ███    ███ ▄██▀▀▀███▀▀▀██▄   ███    ███ ███   ▀███ \n  ███    ███ ███         ███    ███    ▀███▀▀██   ███    █▀  ███    ███   ███    ███ ███   ███   ███   ███    █▀  ███    ███ \n  ███    ███ ███         ███    ███     ███   ▀  ▄███▄▄▄     ███    ███  ▄███▄▄▄▄██▀ ███   ███   ███  ▄███▄▄▄     ███    ███ \n▀█████████▀  ███       ▀███████████     ███     ▀▀███▀▀▀     ███    ███ ▀▀███▀▀▀▀▀   ███   ███   ███ ▀▀███▀▀▀     ███    ███ \n  ███        ███         ███    ███     ███       ███        ███    ███ ▀███████████ ███   ███   ███   ███    █▄  ███    ███ \n  ███        ███▌    ▄   ███    ███     ███       ███        ███    ███   ███    ███ ███   ███   ███   ███    ███ ███   ▄███ \n ▄████▀      █████▄▄██   ███    █▀     ▄████▀     ███         ▀██████▀    ███    ███  ▀█   ███   █▀    ██████████ ████████▀  \n             ▀                                                            ███    ███                                         ");
             //console.log("                         ___                                                                        \n_-_ _,,                 -   -_,                               _-_ _,,              ,,               \n   -/  )               (  ~/||    _                              -/  )             ||               \n  ~||_<   '\\\\/\\\\       (  / ||   < \\, ,._-_  /'\\\\ \\\\/\\\\         ~||_<    _-_   _-_ ||/\\  _-_  ,._-_ \n   || \\\\   || ;'        \\/==||   /-||  ||   || || || ||          || \\\\  || \\\\ ||   ||_< || \\\\  ||   \n   ,/--||  ||/          /_ _||  (( ||  ||   || || || ||          ,/--|| ||/   ||   || | ||/    ||   \n  _--_-'   |/          (  - \\\\,  \\/\\\\  \\\\,  \\\\,/  \\\\ \\\\         _--_-'  \\\\,/  \\\\,/ \\\\,\\ \\\\,/   \\\\,  \n (        (                                                    (                                    \n           -_-                                                                                      ");
+            gameAudio.fade("in",3000, "");
+            gameAudio.play();
+            console.log("[AUDIOMANAGER] Audio initialized");
             console.log("PHYSICS INITIALIZED");
             console.typeable("debugon","console.log(\"Type debugon into the console to enable debug mode. (Warning: there is about 1000 debug messages outputted per second)\");","console.log(\"Debug mode active.\"); Physics.debugMode = true;");
             console.typeable("debugoff","console.log(\"Type debugoff into the console to disable debug mode.\");","console.log(\"Debug mode disabled.\"); Physics.debugMode = false;");
             console.typeable("collisioncheck","console.log(\"Type collisioncheck into the console to test collisions. (mostly for me) Note that the object being tested must be named \'player\'.\");","console.log(\"Testing collisions...\"); player.y = 1000; player.x = -1000; Physics.render(platform,platform2,platform3,player,tri); Physics.calculate_collisions(platform,platform2,platform3,player,tri); console.log(\"Player colliding: bottom: \"+player.collisionBottom+\", top: \"+player.collisionTop+\", right: \"+player.collisionRight+\", left: \"+player.collisionLeft); setTimeout(function(){player.y = 10; player.x = 10; Physics.render(platform,platform2,platform3,player,tri); Physics.calculate_collisions(platform,platform2,platform3,player,tri); console.log(\"Player still colliding: bottom: \"+player.collisionBottom+\", top: \"+player.collisionTop+\", right: \"+player.collisionRight+\", left: \"+player.collisionLeft);},100);");
-            beginGame(30); //start game at 30fps
+            beginGame(50); //start game at 30fps
             console.log("%cWelcome to Platformed, a 2d platformer game by Aaron Becker. I hope you enjoy it! Also, if you see this, you're awesome :)","color: #f49b42")
         },500);
 
@@ -488,6 +505,7 @@ Physics.shape.prototype.calculate = function() {
 
 var play = [];
 var timeSinceUpKey;
+var timeBetweenJumps = 1000;
 var lastKeyPress = Date.now();
 Physics.shape.prototype.control = function() {
     play = this;
@@ -495,7 +513,8 @@ Physics.shape.prototype.control = function() {
         var e = window.event ? window.event : e;
         if (e.keyCode == 38) { //up
             timeSinceUpKey = Date.now()-lastKeyPress;
-            if (play.momentumY < Physics.gravitationalConstant && timeSinceUpKey > 1500) {
+            if (play.momentumY < Physics.gravitationalConstant && timeSinceUpKey > timeBetweenJumps) {
+                lastKeyPress = Date.now();
                 play.y-=2;
                 setTimeout(function(){
                     play.momentumY = -3;
@@ -503,7 +522,6 @@ Physics.shape.prototype.control = function() {
             } else if (lvlnum == 0 || lvlnum == "title") {
                 play.momentumY = -2.5;
             }
-            lastKeyPress = Date.now();
         } else if (e.keyCode == 40) { //down
             if (play.y+play.height == Physics.height || play.momentumY < Physics.gravitationalConstant) {
                 play.momentumY = 3;
