@@ -154,14 +154,21 @@ var gameAudio = {
 
         if(isIn) {
             for (var i=0; i<Object.keys(gameAudio.audio).length; i++) {
-                gameAudio.audio[Object.keys(gameAudio.audio)[i]].audioelement.volume = volume;
+                if (typeof gameAudio.audio[Object.keys(gameAudio.audio)[i]].audioelement.volume === "undefined") {
+                    gameAudio.audio[Object.keys(gameAudio.audio)[i]].audioelement.volume = 1;
+                }
+                if (volume < gameAudio.audio[Object.keys(gameAudio.audio)[i]].audioelement.volume) {
+                    gameAudio.audio[Object.keys(gameAudio.audio)[i]].audioelement.volume = volume;
+                }
             }
         }
 
         function func() {
             volume = isIn ? volume + gap : volume - gap;
             for (var i=0; i<Object.keys(gameAudio.audio).length; i++) {
-                gameAudio.audio[Object.keys(gameAudio.audio)[i]].audioelement.volume = volume;
+                if (volume < gameAudio.audio[Object.keys(gameAudio.audio)[i]].audioelement.volume) {
+                    gameAudio.audio[Object.keys(gameAudio.audio)[i]].audioelement.volume = volume;
+                }
             }
             volume = Math.round(volume*100)/100;
             if(volume <= 0 || volume >= 1) {

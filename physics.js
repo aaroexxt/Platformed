@@ -8,11 +8,24 @@ var Physics = {
     defaultSpaceChar: " ",
     defaultShapeChar: "*",
     defaultNewlineChar: "<br>",
-    startString: "PHYV3:<br><br>",
+    startString: "PHYV5:<br><br>",
     gravitationalConstant: 0.2,
     frictionConstant: 0.7,
     terminalVelocity: 7,
-    //weightPerCharacter: 0.1,
+    ticksPerSecond: 60, //limit number of physics calls per second
+    updatesPerSecond: 40, //limit number of gravity updates per second
+    renderPerSecond: 50, //limit renders performed per second
+    now: Date.now(),
+    nextTick: Date.now(),
+    nextUpdate: Date.now(),
+    nextRender: Date.now(), //currently disabled because of problems with timing, go to line 279 to change this (line may change as I remove/add code)
+    lastUpdate: Date.now(),
+    oldDelta: 0,
+    enableDeltaTimeCalculations: true, //can help mitigate low framerate by helping to keep jumps consistent
+    simpleDeltaCalculations: true,
+    forceAverageDelta: false,
+    moreEfficientPhysics: false, //beta and doesn't work yet
+    //weightPerCharacter: 0.1, //to be implemented
     debugMode: false,
     allGravity: false,
     width: window.innerWidth,
@@ -20,13 +33,15 @@ var Physics = {
     lineHeight: 0.65,
     initialLineHeight: 0.83,
     collisionAccuracy: 0.5,
+    collisionEfficiency: -1,
+    inefficientArr: [],
     bodyFontSize: 16,
     renderBuffer: [],
     renderString: [],
     charsPerFrame: 0,
     shape: function(type, options) {
         if (type === undefined || options === undefined) {
-            throw new Error("Type or options incomplete");
+            throw new Error("Type or options incomplete when constructing shape");
             return new Error("");
         } else {
             this.x = options.x || 0;
@@ -42,6 +57,10 @@ var Physics = {
             this.collide = options.collide;
             if (typeof this.collide === "undefined") {
                 this.collide = true;
+            }
+            this.overrideRenderLimit = options.overrideRenderLimit || false;
+            if (typeof this.overrideRenderLimit === "undefined") {
+                this.overrideRenderLimit = false;
             }
 
             this.pointTable = [];
@@ -69,6 +88,35 @@ var Physics = {
                         this.mesh[i] = "";
                         for (var j=0; j<this.width; j++) {
                             this.mesh[i]+=this.character;
+                            this.pointTable[this.pointTable.length] = [i,j];
+                        }
+                    }
+                } else {
+                    for (var i=0; i<this.height; i++) {
+                        this.mesh[i] = "";
+                        for (var j=0; j<this.width; j++) {
+                            if ((i == 0 || i == (this.height-1)) || (j == 0 || j == (this.width-1))) {
+                                this.mesh[i]+=this.character;
+                                this.pointTable[this.pointTable.length] = [i,j];
+                            } else {
+                                this.mesh[i]+=Physics.defaultSpaceChar;
+                            }
+                        }
+                    }
+                }
+            } else if (type == "colorbox") {
+                this.height = options.height || 10;
+                this.width = options.width || 10;
+                this.color = options.color || "black";
+                this.filled = options.filled;
+                if (typeof this.filled === "undefined") {
+                    this.filled = true;
+                }
+                if (this.filled) {
+                    for (var i=0; i<this.height; i++) {
+                        this.mesh[i] = "";
+                        for (var j=0; j<this.width; j++) {
+                            this.mesh[i]+="<span style='color: "+this.color+";'>"+this.character+"</span>";
                             this.pointTable[this.pointTable.length] = [i,j];
                         }
                     }
@@ -202,8 +250,23 @@ var Physics = {
             this.update(); //update to start gravity and set updated point table
         }
     },
-    render: function(clearScreen) {
-        clearScreen = clearScreen || false;
+    render: function(clearScreen) { //todo fix slow replaceat functions
+        if (typeof clearScreen === "undefined") {
+            clearScreen = false;
+        }
+
+        Physics.now = Date.now();
+        var elapsed = Physics.now-Physics.nextRender;
+        var nextFrameReached = (elapsed > (1000/Physics.renderPerSecond))? true : false;
+        if (nextFrameReached) {
+            Physics.nextRender = Physics.now - (elapsed % (1000/Physics.renderPerSecond));
+        }
+
+        var elapsedupd = Physics.now-Physics.nextUpdate;
+        var nextUpdateReached = (elapsedupd > (1000/Physics.updatesPerSecond))? true : false;
+        if (nextUpdateReached) {
+            Physics.nextUpdate = Physics.now - (elapsedupd % (1000/Physics.updatesPerSecond));
+        }
 
         Physics.charsPerFrame = 0;
 
@@ -221,7 +284,7 @@ var Physics = {
             if (arguments[i] != true && arguments[i] != false && typeof arguments[i] !== "undefined") {
                 //alert(JSON.stringify(arguments[i]))
                 try {
-                    if (arguments[i].gravity == true || Physics.allGravity) { //calculate gravity
+                    if ((arguments[i].gravity == true || Physics.allGravity) && (nextUpdateReached || true)) { //calculate gravity
                         if (Physics.debugMode) {console.log("Updating velocity for shape: "+arguments[i].type+", UUID: "+arguments[i].UUID+" (velX: "+arguments[i].momentumX+", velY: "+arguments[i].momentumY+")")}
                             arguments[i].update(false);
                     }
@@ -242,7 +305,7 @@ var Physics = {
                         bad = true;
                         console.error("Error rendering: argument "+i+" doesn't have a width or height property")
                     }
-                    if (arguments[i].width > Physics.width || arguments[i].height > Physics.height) {
+                    if ((arguments[i].width > Physics.width || arguments[i].height > Physics.height) && arguments[i].type != "colorbox") {
                         bad = true;
                         console.error("Error rendering: argument "+i+"'s mesh is too large to fit on screen");
                     }
@@ -258,15 +321,17 @@ var Physics = {
                         if (arguments[i].mesh.length == 0) {
                             console.error("Error rendering: shape has no mesh to render!");
                         } else {
-                            for (var j=0; j<arguments[i].mesh.length; j++) { //for every line of mesh
-                                for (var b=0; b<arguments[i].mesh[j].length; b++) { //for every character in mesh
-                                    try {
-                                        Physics.renderBuffer[j+y] = Physics.renderBuffer[j+y].replaceAt(b+x,arguments[i].mesh[j][b]);
-                                        Physics.charsPerFrame++;
-                                    } catch(e) {
-                                        console.error("Error while rendering physics buffer for shape "+arguments[i].type+", UUID "+arguments[i].UUID+", x: "+(b+x)+", y: "+(j+y)+", error: "+e);
+                            if (nextFrameReached || clearScreen == false || arguments[i].overrideRenderLimit || true) { //I'll fix the render timing later, it doesn't work
+                                for (var j=0; j<arguments[i].mesh.length; j++) { //for every line of mesh
+                                    for (var b=0; b<arguments[i].mesh[j].length; b++) { //for every character in mesh
+                                        try {
+                                            Physics.renderBuffer[j+y] = Physics.renderBuffer[j+y].replaceAt(b+x,arguments[i].mesh[j][b]);
+                                            Physics.charsPerFrame++;
+                                        } catch(e) {
+                                            console.error("Error while rendering physics buffer for shape "+arguments[i].type+", UUID "+arguments[i].UUID+", x: "+(b+x)+", y: "+(j+y)+", error: "+e);
+                                        }
+                                        if (Physics.debugMode){console.log("Adding to buffer at x: "+(b+x)+", y: "+(j+y)+", char: "+arguments[i].mesh[j][b])}
                                     }
-                                    if (Physics.debugMode){console.log("Adding to buffer at x: "+(b+x)+", y: "+(j+y)+", char: "+arguments[i].mesh[j][b])}
                                 }
                             }
                         }
@@ -279,12 +344,14 @@ var Physics = {
         for (var i=0; i<Physics.renderBuffer.length; i++) {
             temp+=Physics.renderBuffer[i]+Physics.defaultNewlineChar;
         }
-        if (Physics.element.innerHTML != temp) { //only draw if different optimization
-            Physics.renderString = Physics.startString;
-            for (var i=0; i<Physics.renderBuffer.length; i++) { //write it to string to optimize writing calls
-                Physics.renderString+=Physics.renderBuffer[i]+Physics.defaultNewlineChar;
+        if (Physics.charsPerFrame > 0) {
+            if (Physics.element.innerHTML != temp) { //only draw if different optimization
+                Physics.renderString = Physics.startString;
+                for (var i=0; i<Physics.renderBuffer.length; i++) { //write it to string to optimize writing calls
+                    Physics.renderString+=Physics.renderBuffer[i]+Physics.defaultNewlineChar;
+                }
+                Physics.element.innerHTML = Physics.renderString; //draw it!
             }
-            Physics.element.innerHTML = Physics.renderString; //draw it!
         }
     },
     /*
@@ -294,102 +361,216 @@ var Physics = {
     */
     calculate_collisions: function() {
         if (arguments.length < 2) {
-            console.error("Error while calculating collisions: there is only one (or none) shape passed into function.");
+            console.error("Error while calculating collisions: there is only one (or none) shape passed into function. COLL_MAIN");
         } else {
-
-            for (var i=0; i<arguments.length; i++) {
-                arguments[i].collisionBottom = false;
-                arguments[i].collisionTop = false;
-                arguments[i].collisionRight = false;
-                arguments[i].collisionLeft = false;
+            Physics.now = Date.now();
+            var elapsed = Physics.now-Physics.nextTick;
+            var nextTickReached = (elapsed > (1000/Physics.ticksPerSecond))? true : false;
+            if (nextTickReached) {
+                Physics.nextTick = Physics.now - (elapsed % (1000/Physics.ticksPerSecond));
             }
+            if (nextTickReached) {
+                var inefficient = 0;
+                Physics.inefficientArr = [];
+                for (var i=0; i<arguments.length; i++) {
+                    arguments[i].collisionBottom = false;
+                    arguments[i].collisionTop = false;
+                    arguments[i].collisionRight = false;
+                    arguments[i].collisionLeft = false;
+                }
+                for (var i=0; i<arguments.length; i++) {
+                    /*if (arguments[i].updPointTable === undefined || arguments[i].centerPoint === undefined || (typeof arguments[i].centerPoint[0] == "number" && isNaN(arguments[i].centerPoint[0]))) {
+                        arguments[i].update(); //calculate gravity and updPointTable, as well as center point
+                    }*/
+                    arguments[i].calculate();
+                    for (var j=1; j<arguments.length-1; j++) {
+                        /*if (arguments[i].updPointTable === undefined || arguments[j].centerPoint === undefined || (typeof arguments[i].centerPoint[0] == "number" && isNaN(arguments[i].centerPoint[0]))) {
+                            arguments[j].update(); //calculate gravity and updPointTable
+                        }*/
+                        if (j==1) {
+                            arguments[j].calculate();
+                        } //only need to do this for one iteration of j to save computational power
+                        if (typeof arguments[i] != "undefined" && typeof arguments[j] != "undefined") {
+                            if (arguments[i] !== arguments[j]) {
+                                if (Physics.debugMode) {
+                                    console.log("Arguments evaluating for collision type: "+arguments[i].type+" "+arguments[j].type);
+                                }
+                                switch((Physics.moreEfficientPhysics) ? (arguments[i].type+" "+arguments[j].type) : ("nomatch")) { //first try broad methods to simplify computation time by matching against preset scenarios
+                                    case "box box":
+                                        if (arguments[i].x < arguments[j].x + arguments[j].width && arguments[i].x + arguments[i].width > arguments[j].x && arguments[i].y < arguments[j].y + arguments[j].height && arguments[i].height + arguments[i].y > arguments[j].y) {
+                                            Physics.determineCollisionSide(arguments[i],arguments[j]);
+                                        }
+                                    break;
+                                    case "line box":
+                                        if (arguments[i].x < arguments[j].x + arguments[j].width && arguments[i].x + arguments[i].length > arguments[j].x && arguments[i].y < arguments[j].y + arguments[j].height && 1 + arguments[i].y > arguments[j].y) {
+                                            Physics.determineCollisionSide(arguments[i],arguments[j]);
+                                        }
+                                    break;
+                                    case "box line":
+                                        if (arguments[i].x < arguments[j].x + arguments[j].length && arguments[i].x + arguments[i].width > arguments[j].x && arguments[i].y < arguments[j].y + 1 && arguments[i].height + arguments[i].y > arguments[j].y) {
+                                            Physics.determineCollisionSide(arguments[i],arguments[j]);
+                                        }
+                                    break;
+                                    case "line line":
+                                        if (arguments[i].x < arguments[j].x + arguments[j].length && arguments[i].x + arguments[i].length > arguments[j].x && arguments[i].y < arguments[j].y + 1 && 1 + arguments[i].y > arguments[j].y) {
+                                            Physics.determineCollisionSide(arguments[i],arguments[j]);
+                                        }
+                                    break;
+                                    case "circle circle":
+                                    break;
+                                    case "line circle":
+                                    break;
+                                    case "circle line":
+                                    break;
+                                    case "box circle":
+                                    break;
+                                    case "circle box":
+                                    break;
+                                    default:
+                                        inefficient++;
+                                        Physics.inefficientArr[Physics.inefficientArr.length] = arguments[i];
+                                        Physics.inefficientArr[Physics.inefficientArr.length] = arguments[j];
+                                    break;
+                                }
+                            }
+                            
+                        }
+                    }
+                }
+                for (var i=0; i<Physics.inefficientArr.length; i+=2) {
+                    if (typeof Physics.inefficientArr[i] != "undefined" && typeof Physics.inefficientArr[i+1] != "undefined") {
+                        Physics.calculate_collisions_narrow(Physics.inefficientArr[i],Physics.inefficientArr[i+1]);
+                    } else {
+                        console.error("COLL_NARROW: Physics coll i+1 val missing, calculating with previous argument");
+                        Physics.calculate_collisions_narrow([i],Physics.inefficientArr[i-1]);
+                    }
+                }
+                if (Physics.debugMode) {
+                    console.log("Physics collision checking ineffifiency: "+((inefficient/(arguments.length**2))*100)+"%, inefficiently processed args: "+inefficient+", args: "+arguments.length);
+                }
+                Physics.collisionEfficiency = 100-((inefficient/(arguments.length**2))*100);
+            }
+        }
+
+        //memory of which blocks are different from part of rendering
+    },
+    calculate_collisions_mid: function() {
+
+    },
+    calculate_collisions_narrow: function() {
+        //console.log(arguments.length)
+        if (arguments.length < 2) {
+            console.error("Error while calculating collisions: there is only one (or none) shape passed into function. COLL_NARROW");
+        } else {
             for (var i=0; i<arguments.length; i++) {
                 /*if (arguments[i].updPointTable === undefined || arguments[i].centerPoint === undefined || (typeof arguments[i].centerPoint[0] == "number" && isNaN(arguments[i].centerPoint[0]))) {
                     arguments[i].update(); //calculate gravity and updPointTable, as well as center point
                 }*/
-                arguments[i].calculate();
-                for (var j=1; j<arguments.length-1; j++) {
+                //arguments[i].calculate();
+                for (var j=1; j<arguments.length; j++) {
                     /*if (arguments[i].updPointTable === undefined || arguments[j].centerPoint === undefined || (typeof arguments[i].centerPoint[0] == "number" && isNaN(arguments[i].centerPoint[0]))) {
                         arguments[j].update(); //calculate gravity and updPointTable
                     }*/
-                    arguments[j].calculate();
+                    //arguments[j].calculate();
                     for (var b=0; b<arguments[i].updPointTable.length; b++) {
                         for (var z=0; z<arguments[j].updPointTable.length; z++) {
                             //console.log(typeof (arguments[i].updPointTable[b][0]-arguments[j].updPointTable[z][0]))
-                            if (((arguments[i].updPointTable[b][0]-arguments[j].updPointTable[z][0]).between(-Physics.collisionAccuracy,Physics.collisionAccuracy) && (arguments[i].updPointTable[b][1]-arguments[j].updPointTable[z][1]).between(-Physics.collisionAccuracy,Physics.collisionAccuracy)) && arguments[i].UUID != arguments[j].UUID) { //make sure uuids are different so that shapes can't collide with themselves
+                            //old check && ((arguments[i].updPointTable[b][0]-arguments[j].updPointTable[z][0]).between(-Physics.collisionAccuracy,Physics.collisionAccuracy) && (arguments[i].updPointTable[b][1]-arguments[j].updPointTable[z][1]).between(-Physics.collisionAccuracy,Physics.collisionAccuracy))
+                            //console.log((arguments[i].updPointTable[b][0]-arguments[j].updPointTable[z][0]));
+                            //new check (((arguments[i].updPointTable[b][0]-arguments[j].updPointTable[z][0]) < Physics.collisionAccuracy) && (arguments[i].updPointTable[b][0]-arguments[j].updPointTable[z][0]) > -Physics.collisionAccuracy))
+                            var xdist = (arguments[i].updPointTable[b][0]-arguments[j].updPointTable[z][0]);
+                            var ydist = (arguments[i].updPointTable[b][1]-arguments[j].updPointTable[z][1]);
+                            if (((xdist > -Physics.collisionAccuracy && xdist < Physics.collisionAccuracy) && (ydist > -Physics.collisionAccuracy && ydist < Physics.collisionAccuracy)) && arguments[i].UUID != arguments[j].UUID) { //make sure uuids are different so that shapes can't collide with themselves
                                 if (Physics.debugMode) {
                                     console.log("Collision detected between "+arguments[i].type+" (UUID: "+arguments[i].UUID+") and "+arguments[j].type+" (UUID: "+arguments[j].UUID+"), X1: "+arguments[i].updPointTable[b][0]+", Y1: "+arguments[i].updPointTable[b][1]+", X2: "+arguments[j].updPointTable[z][0]+", Y2: "+arguments[j].updPointTable[z][0]);
                                 }
 
-                                //calc collision side for first shape
-                                if (arguments[i].collide) {
-                                    if (arguments[i].collisionRight == false && arguments[i].collisionLeft == false) {
-                                        if (arguments[i].updPointTable[b][0] <= arguments[i].centerPoint[0]) { //if x pos collision of first shape is less than center (left collision)
-                                            arguments[i].collisionRight = false;
-                                            arguments[i].collisionLeft = true;
-                                        } else if (arguments[i].updPointTable[b][0] > arguments[i].centerPoint[0]) { //collision right
-                                            arguments[i].collisionRight = true;
-                                            arguments[i].collisionLeft = false;
-                                        } else {
-                                            console.error("Error calculating collision side from collision (x axis), try running update on shape "+arguments[i].type+", UUID "+arguments[i].UUID);
-                                            arguments[i].calculate();
-                                        }
-                                    }
-
-                                    if (arguments[i].collisionTop == false && arguments[i].collisionBottom == false) {
-                                        if (arguments[i].updPointTable[b][1] <= arguments[i].centerPoint[1] || arguments[i].y+arguments[i].height == Physics.height) { //if y pos collision of first shape is less than center (bottom collision) or __exact center__!
-                                            arguments[i].collisionBottom = true;
-                                            arguments[i].collisionTop = false;
-                                        } else if (arguments[i].updPointTable[b][1] > arguments[i].centerPoint[1]) { //collision top
-                                            arguments[i].collisionBottom = false;
-                                            arguments[i].collisionTop = true;
-                                        } else {
-                                            console.error("Error calculating collision side from collision (y axis), try running update on shape "+arguments[i].type+", UUID "+arguments[i].UUID);
-                                            arguments[i].calculate();
-                                        }
-                                    }
-                                }
-
-                                //calc collision side for second shape
-                                if (arguments[j].collide) {
-                                    if (arguments[j].collisionRight == false && arguments[j].collisionLeft == false) {
-                                        if (arguments[j].updPointTable[z][0] <= arguments[j].centerPoint[0]) { //if x pos collision of first shape is less than center (left collision)
-                                            arguments[j].collisionRight = false;
-                                            arguments[j].collisionLeft = true;
-                                        } else if (arguments[j].updPointTable[z][0] > arguments[j].centerPoint[0]) { //collision right
-                                            arguments[j].collisionRight = true;
-                                            arguments[j].collisionLeft = false;
-                                        } else {
-                                            console.error("Error calculating collision side from collision (x axis), try running update on shape "+arguments[j].type+", UUID "+arguments[j].UUID+"Point X: "+arguments[j].updPointTable[b][0]+", center X: "+arguments[j].centerPoint[0]);
-                                            arguments[j].calculate();
-                                        }
-                                    }
-
-                                    if (arguments[j].collisionTop == false && arguments[j].collisionBottom == false) {
-                                        if (arguments[j].updPointTable[z][1] <= arguments[j].centerPoint[1] || arguments[j].y+arguments[j].height == Physics.height) { //if y pos collision of first shape is less than center (bottom collision) or __exact center__!
-                                            arguments[j].collisionBottom = true;
-                                            arguments[j].collisionTop = false;
-                                        } else if (arguments[j].updPointTable[z][1] > arguments[j].centerPoint[1]) { //collision top
-                                            arguments[j].collisionBottom = false;
-                                            arguments[j].collisionTop = true;
-                                        } else {
-                                            console.error("Error calculating collision side from collision (y axis), try running update on shape "+arguments[j].type+", UUID "+arguments[j].UUID);
-                                            arguments[j].calculate();
-                                        }
-                                    }
-                                }
-
-                                if (Physics.debugMode) {
-                                    console.log("Shape 1 updPointTable "+JSON.stringify(arguments[i].updPointTable[b])+", Shape 2 updPointTable "+JSON.stringify(arguments[j].updPointTable[z])+", Shape 1 centerPoint "+JSON.stringify(arguments[i].centerPoint)+", Shape 2 centerPoint "+JSON.stringify(arguments[j].centerPoint)+", Shape 1 collide "+arguments[i].collide+", Shape 2 collide "+arguments[j].collide)
-                                }
+                                Physics.determineCollisionSideFromPoint(arguments[i],arguments[j],b,z);
                             }
                         }
                     }
                 }
             }
         }
+    },
+    determineCollisionSideFromPoint: function(shape,shape2,shape1ind,shape2ind) {
+        //calc collision side for first shape
+        if (shape.collide) {
+            if (shape.collisionRight == false && shape.collisionLeft == false) {
+                if (shape.updPointTable[shape1ind][0] <= shape.centerPoint[0]) { //if x pos collision of first shape is less than center (left collision)
+                    shape.collisionRight = false;
+                    shape.collisionLeft = true;
+                } else if (shape.updPointTable[shape1ind][0] > shape.centerPoint[0]) { //collision right
+                    shape.collisionRight = true;
+                    shape.collisionLeft = false;
+                } else {
+                    console.error("Error calculating collision side from collision (x axis), try running update on shape "+shape.type+", UUID "+shape.UUID);
+                    shape.calculate();
+                }
+            }
 
-        //memory of which blocks are different from part of rendering
+            if (shape.collisionTop == false && shape.collisionBottom == false) {
+                if (shape.updPointTable[shape1ind][1] <= shape.centerPoint[1] || shape.y+shape.height == Physics.height) { //if y pos collision of first shape is less than center (bottom collision) or __exact center__!
+                    shape.collisionBottom = true;
+                    shape.collisionTop = false;
+                } else if (shape.updPointTable[shape1ind][1] > shape.centerPoint[1]) { //collision top
+                    shape.collisionBottom = false;
+                    shape.collisionTop = true;
+                } else {
+                    console.error("Error calculating collision side from collision (y axis), try running update on shape "+shape.type+", UUID "+shape.UUID);
+                    shape.calculate();
+                }
+            }
+        }
+
+        //calc collision side for second shape
+        if (shape2.collide) {
+            if (shape2.collisionRight == false && shape2.collisionLeft == false) {
+                if (shape2.updPointTable[shape2ind][0] <= shape2.centerPoint[0]) { //if x pos collision of first shape is less than center (left collision)
+                    shape2.collisionRight = false;
+                    shape2.collisionLeft = true;
+                } else if (shape2.updPointTable[shape2ind][0] > shape2.centerPoint[0]) { //collision right
+                    shape2.collisionRight = true;
+                    shape2.collisionLeft = false;
+                } else {
+                    console.error("Error calculating collision side from collision (x axis), try running update on shape "+shape2.type+", UUID "+shape2.UUID+"Point X: "+shape2.updPointTable[shape1ind][0]+", center X: "+shape2.centerPoint[0]);
+                    shape2.calculate();
+                }
+            }
+
+            if (shape2.collisionTop == false && shape2.collisionBottom == false) {
+                if (shape2.updPointTable[shape2ind][1] <= shape2.centerPoint[1] || shape2.y+shape2.height == Physics.height) { //if y pos collision of first shape is less than center (bottom collision) or __exact center__!
+                    shape2.collisionBottom = true;
+                    shape2.collisionTop = false;
+                } else if (shape2.updPointTable[shape2ind][1] > shape2.centerPoint[1]) { //collision top
+                    shape2.collisionBottom = false;
+                    shape2.collisionTop = true;
+                } else {
+                    console.error("Error calculating collision side from collision (y axis), try running update on shape "+shape2.type+", UUID "+shape2.UUID);
+                    shape2.calculate();
+                }
+            }
+        }
+
+        if (Physics.debugMode) {
+            console.log("Shape 1 updPointTable "+JSON.stringify(shape.updPointTable[shape1ind])+", Shape 2 updPointTable "+JSON.stringify(shape2.updPointTable[shape2ind])+", Shape 1 centerPoint "+JSON.stringify(shape.centerPoint)+", Shape 2 centerPoint "+JSON.stringify(shape2.centerPoint)+", Shape 1 collide "+shape.collide+", Shape 2 collide "+shape2.collide)
+        }
+    },
+    determineCollisionSide: function(shape1, shape2) {
+        if (shape1.centerPoint[0] <= shape2.centerPoint[0]) {
+            shape1.collisionLeft = true;
+            shape1.collisionRight = false;
+
+            shape2.collisionRight = true;
+            shape2.collisionLeft = false;
+        }
+        if (shape1.centerPoint[0] <= shape2.centerPoint[0]) {
+            shape1.collisionBottom = true;
+            shape1.collisionTop = false;
+
+            shape2.collisionTop = true;
+            shape2.collisionBottom = false;
+        }
     },
     init: function() {
         setTimeout(function(){
@@ -403,7 +584,7 @@ var Physics = {
             console.typeable("debugon","console.log(\"Type debugon into the console to enable debug mode. (Warning: there is about 1000 debug messages outputted per second)\");","console.log(\"Debug mode active.\"); Physics.debugMode = true;");
             console.typeable("debugoff","console.log(\"Type debugoff into the console to disable debug mode.\");","console.log(\"Debug mode disabled.\"); Physics.debugMode = false;");
             console.typeable("collisioncheck","console.log(\"Type collisioncheck into the console to test collisions. (mostly for me) Note that the object being tested must be named \'player\'.\");","console.log(\"Testing collisions...\"); player.y = 1000; player.x = -1000; Physics.render(platform,platform2,platform3,player,tri); Physics.calculate_collisions(platform,platform2,platform3,player,tri); console.log(\"Player colliding: bottom: \"+player.collisionBottom+\", top: \"+player.collisionTop+\", right: \"+player.collisionRight+\", left: \"+player.collisionLeft); setTimeout(function(){player.y = 10; player.x = 10; Physics.render(platform,platform2,platform3,player,tri); Physics.calculate_collisions(platform,platform2,platform3,player,tri); console.log(\"Player still colliding: bottom: \"+player.collisionBottom+\", top: \"+player.collisionTop+\", right: \"+player.collisionRight+\", left: \"+player.collisionLeft);},100);");
-            beginGame(50); //start game at 30fps
+            beginGame(60); //start game at 30fps
             console.log("%cWelcome to Platformed, a 2d platformer game by Aaron Becker. I hope you enjoy it! Also, if you see this, you're awesome :)","color: #f49b42")
         },500);
 
@@ -422,6 +603,13 @@ var Physics = {
 
 Physics.shape.prototype.update = function(render) {
     this.calculate();
+
+    var deltaTime = (Physics.forceAverageDelta) ? ((Physics.oldDelta+((Date.now()-Physics.lastUpdate)/(1000/Physics.updatesPerSecond)))/2) : (Date.now()-Physics.lastUpdate)/(1000/Physics.updatesPerSecond); //calculate deltatime as ratio between tme since last update and updates per second vs calculate deltatime since last frame as ratio between time between last update and updates per second averaged with the last frames delta to redce spikes
+    Physics.oldDelta = deltaTime; //average delta to avoid spikes
+
+    var frictionRatio = 1 / (0.3 + (deltaTime * Physics.frictionConstant));
+    var gravityRatio = 1 / (0.7 + (deltaTime * Physics.gravitationalConstant));
+
     render = render || false;
     if (this.gravity === undefined || this.momentumX === undefined || this.momentumY === undefined) {
             console.error("Object passed in to update function has no gravity constants");
@@ -435,8 +623,18 @@ Physics.shape.prototype.update = function(render) {
             if (this.x+this.width == Physics.width) {
                 this.momentumX = 0;
             }
-            this.y += this.momentumY; //no collision increment velocity
-            this.x += this.momentumX;
+            //this.momentumX *= frictionRatio;
+            //this.momentumY *= gravityRatio;
+            var gconst = 0.99;
+            var fconst = 0.99;
+
+            this.y += ((Physics.enableDeltaTimeCalculations)? ((!Physics.simpleDeltaCalculations) ? (this.momentumY * (gconst**(deltaTime*deltaTime)-1) / (deltaTime*Math.log(gconst))) : (this.momentumY * deltaTime)) : this.momentumY); //calculate position change as integral from 0 to dt of (velocity * (drag^(x*dt)))dx
+            this.x += ((Physics.enableDeltaTimeCalculations) ? ((!Physics.simpleDeltaCalculations) ? (this.momentumX * (fconst**(deltaTime*deltaTime)-1) / (deltaTime*Math.log(fconst))) : (this.momentumX * deltaTime)) : this.momentumX);
+            if (Physics.debugMode) {
+                console.log("Complex calculations for x pos change: "+String((this.momentumX * (fconst**(deltaTime*deltaTime)-1) / (deltaTime*Math.log(fconst))))+" Simple calculations for x pos change: "+(this.momentumX * deltaTime));
+                console.log("Complex calculations for y pos change: "+String((this.momentumY * (gconst**(deltaTime*deltaTime)-1) / (deltaTime*Math.log(gconst))))+" Simple calculations for y pos change: "+(this.momentumY * deltaTime));
+                console.log("Δtime: "+deltaTime);
+            }
 
             if (this.collisionBottom || this.collisionTop) {
                 /*if (this.momentumY > 0) { //old system
@@ -446,7 +644,7 @@ Physics.shape.prototype.update = function(render) {
                 }*/
                 this.momentumY = -0.25; //new system
             } else {
-                if (this.momentumY != Physics.terminalVelocity || this.momentumY != -Physics.terminalVelocity) {
+                if (this.momentumY <= Physics.terminalVelocity || this.momentumY >= -Physics.terminalVelocity) {
                     this.momentumY = this.momentumY+Physics.gravitationalConstant;
                 }
 
@@ -466,7 +664,7 @@ Physics.shape.prototype.update = function(render) {
                 this.momentumY = 0;
             }
             if (this.collisionRight == false || this.collisionLeft == false) {
-                if (this.momentumX != Physics.terminalVelocity && this.momentumX != -Physics.terminalVelocity) {
+                if (this.momentumX <= Physics.terminalVelocity && this.momentumX >= -Physics.terminalVelocity) {
                     if (this.momentumX > 0) {
                         this.momentumX = this.momentumX-Physics.frictionConstant;
                     } else if (this.momentumX < 0) {
@@ -480,6 +678,7 @@ Physics.shape.prototype.update = function(render) {
         }
     }
 
+    Physics.lastUpdate = Date.now();
     if (render) {
         Physics.render(false,this);
     }
@@ -505,13 +704,18 @@ Physics.shape.prototype.calculate = function() {
 
 var play = [];
 var timeSinceUpKey;
-var timeBetweenJumps = 1000;
+var timeBetweenJumps = 900;
 var lastKeyPress = Date.now();
+var map = {};
 Physics.shape.prototype.control = function() {
     play = this;
-    window.onkeydown = function(e) {
+    window.onkeydown = window.onkeyup = function(e) {
         var e = window.event ? window.event : e;
-        if (e.keyCode == 38) { //up
+        map[e.keyCode] = e.type == 'keydown';
+        if (map["37"] || map["38"] || map["39"] || map["40"]) {
+            e.preventDefault();
+        }
+        if (map["38"]) { //up
             timeSinceUpKey = Date.now()-lastKeyPress;
             if (play.momentumY < Physics.gravitationalConstant && timeSinceUpKey > timeBetweenJumps) {
                 lastKeyPress = Date.now();
@@ -522,17 +726,20 @@ Physics.shape.prototype.control = function() {
             } else if (lvlnum == 0 || lvlnum == "title") {
                 play.momentumY = -2.5;
             }
-        } else if (e.keyCode == 40) { //down
+        }
+        if (map["40"]) { //down
             if (play.y+play.height == Physics.height || play.momentumY < Physics.gravitationalConstant) {
                 play.momentumY = 3;
             } else if (lvlnum == 0 || lvlnum == "title") {
                 play.momentumY = 3;
             }
-        } else if (e.keyCode == 37) { //left
+        }
+        if (map["37"]) { //left
             if (play.momentumX < Physics.terminalVelocity && play.momentumX > -Physics.terminalVelocity) {
                 play.momentumX = -3;
             }
-        } else if (e.keyCode == 39) { //right
+        }
+        if (map["39"]) { //right
             if (play.momentumX < Physics.terminalVelocity && play.momentumX > -Physics.terminalVelocity) {
                 play.momentumX = 3;
             }
